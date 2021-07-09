@@ -34,7 +34,7 @@ public class ArtistList extends ArrayAdapter<Artist> {
 
         Artist artist = artists.get(position);
         textViewName.setText(artist.getArtistName());
-        textViewGenre.setText(artist.getArtistGenre());
+        textViewGenre.setText(artist.getArtistGenre() +" "+artist.getTime());
 
         return listViewItem;
     }

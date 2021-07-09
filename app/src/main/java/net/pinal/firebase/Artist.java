@@ -10,17 +10,22 @@ public class Artist {
     private String artistId;
     private String artistName;
     private String artistGenre;
+    private String time;
 
     public Artist() {
         //this constructor is required
     }
 
-    public Artist(String artistId, String artistName, String artistGenre) {
+    public Artist(String artistId, String artistName, String artistGenre, String time) {
         this.artistId = artistId;
         this.artistName = artistName;
         this.artistGenre = artistGenre;
+        this.time=time;
     }
 
+    public String getTime(){
+        return time;
+    }
     public String getArtistId() {
         return artistId;
     }

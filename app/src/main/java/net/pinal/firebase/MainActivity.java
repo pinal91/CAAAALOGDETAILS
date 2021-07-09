@@ -1,10 +1,22 @@
 package net.pinal.firebase;
 
+import android.Manifest;
+import android.app.ActivityManager;
+import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.database.Cursor;
+import android.net.ParseException;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.provider.CallLog;
+import android.provider.Settings;
+import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
-import android.os.Bundle;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.AdapterView;
@@ -20,14 +32,21 @@ import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 
+import net.pinal.jobscheduler.MyService;
+
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
+import java.util.TimeZone;
 
 public class MainActivity extends AppCompatActivity {
 
     //we will use these constants later to pass the artist name and id to another activity
     public static final String ARTIST_NAME = "net.pinal.firebase.artistname";
     public static final String ARTIST_ID = "net.pinal.firebase.artistid";
+    private static final int MY_PERMISSIONS_REQUEST_READ_CONTACTS = 100;
 
     //view objects
     EditText editTextName;
@@ -40,11 +59,21 @@ public class MainActivity extends AppCompatActivity {
 
     //our database reference object
     DatabaseReference databaseArtists;
-
+    private MyService mYourService;
+    Intent mServiceIntent;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        mYourService = new MyService();
+
+        mServiceIntent = new Intent(this, mYourService.getClass());
+        if (checkPermission()) {
+            if (!isMyServiceRunning(mYourService.getClass())) {
+                startService(mServiceIntent);
+
+            }
+        }
 
         //getting the reference of artists node
         databaseArtists = FirebaseDatabase.getInstance().getReference("artists");
@@ -99,6 +128,67 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+
+    private boolean isMyServiceRunning(Class<?> serviceClass) {
+        ActivityManager manager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+        for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
+            if (serviceClass.getName().equals(service.service.getClassName())) {
+                Log.i ("Service status", "Running");
+                return true;
+            }
+        }
+        Log.i ("Service status", "Not running");
+        return false;
+    }
+
+    private boolean checkPermission(){
+
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED&&
+                ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_CALL_LOG) != PackageManager.PERMISSION_GRANTED&&
+                ActivityCompat.checkSelfPermission(this, Manifest.permission.READ_CALL_LOG) != PackageManager.PERMISSION_GRANTED) {
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.READ_CONTACTS)&&
+                    ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.WRITE_CALL_LOG)&&
+                    ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.READ_CALL_LOG)) {
+                Toast.makeText(this
+                        , "Contact read permission needed. Please allow in App Settings for additional functionality.", Toast.LENGTH_LONG).show();
+                Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.fromParts("package", this.getPackageName(), null));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                startActivityForResult(intent, 789);
+                return false;
+            }else {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    requestPermissions(new String[]{Manifest.permission.READ_CONTACTS,Manifest.permission.WRITE_CALL_LOG,
+                            Manifest.permission.READ_CALL_LOG}, 123);
+
+                }
+                return false;
+            }
+        }
+        return true;
+    }
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        try {
+            super.onActivityResult(requestCode, resultCode, data);
+
+            if (requestCode == 123 && resultCode == RESULT_OK) {
+
+                if (checkPermission()) {
+                    if (!isMyServiceRunning(mYourService.getClass())) {
+                        startService(mServiceIntent);
+
+                    }
+                }
+            }
+        } catch (Exception ex) {
+
+
+        }
+    }
+
     /*
      * This method is saving a new artist to the
      * Firebase Realtime Database
@@ -116,7 +206,7 @@ public class MainActivity extends AppCompatActivity {
             String id = databaseArtists.push().getKey();
 
             //creating an Artist Object
-            Artist artist = new Artist(id, name, genre);
+            Artist artist = new Artist(id, name, genre,"");
 
             //Saving the Artist
             databaseArtists.child(id).setValue(artist);
@@ -210,7 +300,7 @@ public class MainActivity extends AppCompatActivity {
         DatabaseReference dR = FirebaseDatabase.getInstance().getReference("artists").child(id);
 
         //updating artist
-        Artist artist = new Artist(id, name, genre);
+        Artist artist = new Artist(id, name, genre,"");
         dR.setValue(artist);
         Toast.makeText(getApplicationContext(), "Artist Updated", Toast.LENGTH_LONG).show();
         return true;
@@ -233,4 +323,16 @@ public class MainActivity extends AppCompatActivity {
 
         return true;
     }
+
+
+    @Override
+    protected void onDestroy() {
+        //stopService(mServiceIntent);
+       /* Intent broadcastIntent = new Intent();
+        broadcastIntent.setAction("restartservice");
+        broadcastIntent.setClass(this, Restarter.class);
+        this.sendBroadcast(broadcastIntent);*/
+        super.onDestroy();
+    }
+
 }
